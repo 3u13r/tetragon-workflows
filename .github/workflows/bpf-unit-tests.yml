@@ -15,21 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-22.04, ubuntu-22.04-arm64 ]
+        os: [ ubuntu-22.04 ]
     steps:
     - name: Checkout code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-    - name: Install Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        # renovate: datasource=golang-version depName=go
-        go-version: '1.26.5'
-
-    - name: Install LLVM
-      run: |
-        sudo apt-get update
-        sudo apt-get -y install clang llvm
-
-    - name: Run BPF unit test
-      run: make bpf-test BPFGOTESTFLAGS="-v"

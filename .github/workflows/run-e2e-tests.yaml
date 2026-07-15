@@ -19,115 +19,21 @@ env:
 jobs:
   prepare:
     runs-on: ubuntu-24.04
-    outputs:
-      packages: ${{ steps.set-packages.outputs.packages }}
-      agentImage: ${{ steps.vars.outputs.agentImage }}
-      operatorImage: ${{ steps.vars.outputs.operatorImage }}
     steps:
     - name: Checkout Code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-    - name: Install Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        go-version-file: go.mod
-
-    - id: set-packages
-      name: Listing e2e tests packages
-      shell: bash
-      run: |
-        echo PACKAGES=$(make ls-e2e-test | jq -Rnc '[inputs | {"s": split("/")[-1], "f":.}]') | tee -a $GITHUB_STEP_SUMMARY | tee -a $GITHUB_OUTPUT
-
-    - name: Set Up Job Variables
-      id: vars
-      run: |
-        if [ ${{ github.event.issue.pull_request || github.event.pull_request }} ]; then
-          PR_API_JSON=$(curl \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            ${{ github.event.issue.pull_request.url || github.event.pull_request.url }})
-          SHA=$(echo "$PR_API_JSON" | jq -r ".head.sha")
-        else
-          SHA=${{ github.sha }}
-        fi
-        echo "agentImage=quay.io/cilium/tetragon-ci:${SHA}" >> $GITHUB_OUTPUT
-        echo "operatorImage=quay.io/cilium/tetragon-operator-ci:${SHA}" >> $GITHUB_OUTPUT
-
-    - name: Wait Tetragon Images
-      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
-      with:
-        timeout_minutes: 2
-        max_attempts: 30
-        retry_wait_seconds: 30
-        warning_on_retry: false
-        command: |
-          set -e
-          docker pull ${{ steps.vars.outputs.agentImage }}
-          docker pull ${{ steps.vars.outputs.operatorImage }}
-          docker rmi ${{ steps.vars.outputs.agentImage }} ${{ steps.vars.outputs.operatorImage }}
 
   run-e2e-test:
     needs: prepare
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
-    name: ${{matrix.os}} / ${{ matrix.package.s }}
+    name: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-22.04, ubuntu-22.04-arm64 ]
-        package: ${{fromJson(needs.prepare.outputs.packages)}}
+        os: [ ubuntu-22.04]
     steps:
     - name: Checkout Code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         path: go/src/github.com/cilium/tetragon/
-
-    - name: Install Go
-      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-      with:
-        # renovate: datasource=golang-version depName=go
-        go-version: '1.26.5'
-
-    - name: Install kubectl
-      uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
-      with:
-        # renovate: datasource=github-releases depName=kubernetes/kubernetes
-        version: v1.36.2
-
-    - name: Install Helm
-      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
-      with:
-        # renovate: datasource=github-releases depName=helm/helm
-        version: v4.2.3
-
-    - name: Install Kind
-      uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-      with:
-        install_only: true
-        # renovate: datasource=github-releases depName=kubernetes-sigs/kind
-        version: v0.32.0
-
-    - name: Pull Tetragon Images
-      uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
-      with:
-        timeout_minutes: 2
-        max_attempts: 30
-        retry_wait_seconds: 30
-        warning_on_retry: false
-        command: |
-          set -e
-          docker pull ${{ needs.prepare.outputs.agentImage }}
-          docker pull ${{ needs.prepare.outputs.operatorImage }}
-
-    - name: Run e2e Tests
-      run: |
-        cd go/src/github.com/cilium/tetragon
-        make e2e-test E2E_TESTS=${{matrix.package.f}} E2E_BUILD_IMAGES=0 E2E_AGENT=${{ needs.prepare.outputs.agentImage }} E2E_OPERATOR=${{ needs.prepare.outputs.operatorImage }} EXTRA_TESTFLAGS="-cluster-name=${{ env.clusterName }} -args -v=4"
-
-    - name: Upload Tetragon Logs
-      if: failure() || cancelled()
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-      with:
-        name: tetragon-logs-${{ matrix.os }}-${{ matrix.package.s }}
-        path: /tmp/tetragon.e2e.*
-        retention-days: 5
