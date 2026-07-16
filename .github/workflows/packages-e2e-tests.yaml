@@ -1,13 +1,39 @@
 name: Packages e2e Tests
 
 on:
-  pull_request:
-    paths-ignore:
-    - "**.md"
-    - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        required: true
+        type: string
+      context-ref:
+        required: true
+        type: string
+      SHA:
+        required: true
+        type: string
+      base-SHA:
+        required: true
+        type: string
+
+permissions:
+  contents: read
 
 jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set initial commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   standalone-tarball-builds:
+    needs: commit-status-start
     runs-on: ${{ (matrix.arch == 'arm64' && 'ubuntu-22.04-arm') || 'ubuntu-22.04' }}
     strategy:
       fail-fast: false
@@ -16,6 +42,23 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.SHA || github.sha }}
+
+  commit-status-final:
+    if: ${{ always() }}
+    name: Commit Status Final
+    needs: [standalone-tarball-builds, standalone-tarball-tests]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set final commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+          status: ${{ needs.standalone-tarball-builds.result == 'success' && needs.standalone-tarball-tests.result == 'success' && 'success' || 'failure' }}
 
   standalone-tarball-tests:
     needs: [standalone-tarball-builds]
@@ -31,3 +74,5 @@ jobs:
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.SHA || github.sha }}

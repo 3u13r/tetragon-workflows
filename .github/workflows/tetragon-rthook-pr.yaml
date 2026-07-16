@@ -1,16 +1,43 @@
 name: tetragon-rthooks test
 on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        required: true
+        type: string
+      context-ref:
+        required: true
+        type: string
+      SHA:
+        required: true
+        type: string
+      base-SHA:
+        required: true
+        type: string
   push:
     branches:
       - main
     paths-ignore:
       - 'docs/**'
 
+permissions:
+  contents: read
+
 jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set initial commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   prepare:
+    needs: commit-status-start
     name: Build tetragon-rthooks
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -19,13 +46,29 @@ jobs:
       operatorImage: ${{ steps.vars.outputs.operatorImage }}
       rthooksImage: ${{ steps.vars.outputs.rthooksImage }}
     concurrency:
-      group: ${{ github.ref }}-rthooks-build
+      group: ${{ inputs.SHA || github.ref }}-rthooks-build
       cancel-in-progress: true
     steps:
     - name: Checkout code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        ref: ${{ inputs.SHA || github.sha }}
         path: go/src/github.com/cilium/tetragon/
+
+  commit-status-final:
+    if: ${{ always() }}
+    name: Commit Status Final
+    needs: [prepare, test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set final commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+          status: ${{ needs.prepare.result == 'success' && needs.test.result == 'success' && 'success' || 'failure' }}
 
   test:
     needs: prepare
@@ -38,10 +81,11 @@ jobs:
             - "containerd"
             - "crio"
     concurrency:
-      group: ${{ github.ref }}-rthooks-test-${{ matrix.cri }}
+      group: ${{ inputs.SHA || github.ref }}-rthooks-test-${{ matrix.cri }}
       cancel-in-progress: true
     steps:
     - name: Checkout Code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        ref: ${{ inputs.SHA || github.sha }}
         path: go/src/github.com/cilium/tetragon/
