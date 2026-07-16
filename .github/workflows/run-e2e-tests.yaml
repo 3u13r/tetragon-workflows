@@ -1,8 +1,19 @@
 name: Tetragon e2e Test
 on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        required: true
+        type: string
+      context-ref:
+        required: true
+        type: string
+      SHA:
+        required: true
+        type: string
+      base-SHA:
+        required: true
+        type: string
   push:
     branches:
       - main
@@ -10,18 +21,36 @@ on:
       - 'docs/**'
 
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ inputs.SHA || github.ref }}
   cancel-in-progress: true
 
 env:
   clusterName: tetragon-ci
 
+permissions:
+  contents: read
+
 jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set initial commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   prepare:
+    needs: commit-status-start
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout Code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: ${{ inputs.SHA || github.sha }}
 
   run-e2e-test:
     needs: prepare
@@ -36,4 +65,20 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        ref: ${{ inputs.SHA || github.sha }}
         path: go/src/github.com/cilium/tetragon/
+
+  commit-status-final:
+    if: ${{ always() }}
+    name: Commit Status Final
+    needs: [prepare, run-e2e-test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set final commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+          status: ${{ needs.prepare.result == 'success' && needs.run-e2e-test.result == 'success' && 'success' || 'failure' }}
