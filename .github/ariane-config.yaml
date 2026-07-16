@@ -1,0 +1,65 @@
+triggers:
+  /test\s*:
+    workflows:
+      - build-images-ci.yml
+      - bpf-unit-tests.yml
+      - gotests.yml
+      - integration-test.yaml
+      - packages-e2e-tests.yaml
+      - run-e2e-tests.yaml
+      - tetragon-rthook-pr.yaml
+      - vmtests.yml
+      - windows-build-smoke-test.yml
+  /build-images-dependency:
+    workflows:
+      - build-images-ci.yml
+  /test-bpf\s*:
+    workflows:
+      - bpf-unit-tests.yml
+  /test-go\s*:
+    workflows:
+      - gotests.yml
+  /test-integration\s*:
+    workflows:
+      - integration-test.yaml
+    depends-on:
+      - /build-images-dependency
+  /test-packages\s*:
+    workflows:
+      - packages-e2e-tests.yaml
+  /test-e2e\s*:
+    workflows:
+      - run-e2e-tests.yaml
+    depends-on:
+      - /build-images-dependency
+  /test-rthooks\s*:
+    workflows:
+      - tetragon-rthook-pr.yaml
+    depends-on:
+      - /build-images-dependency
+  /test-vm\s*:
+    workflows:
+      - vmtests.yml
+  /test-windows\s*:
+    workflows:
+      - windows-build-smoke-test.yml
+
+workflows:
+  bpf-unit-tests.yml:
+    paths-regex: (bpf/|\.github/workflows/bpf-unit-tests\.yml$)
+  build-images-ci.yml:
+    paths-ignore-regex: ^docs/
+  gotests.yml:
+    paths-ignore-regex: ^docs/
+  integration-test.yaml:
+    paths-ignore-regex: ^docs/
+  packages-e2e-tests.yaml:
+    paths-ignore-regex: (^docs/|.*\.md$)
+  run-e2e-tests.yaml:
+    paths-ignore-regex: ^docs/
+  tetragon-rthook-pr.yaml:
+    paths-ignore-regex: ^docs/
+  vmtests.yml:
+    paths-ignore-regex: ^docs/
+  windows-build-smoke-test.yml:
+    paths-ignore-regex: .*\.md$

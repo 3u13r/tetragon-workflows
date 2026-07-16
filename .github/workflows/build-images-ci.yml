@@ -1,13 +1,20 @@
 name: Image CI Build
 
 on:
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        required: true
+        type: string
+      context-ref:
+        required: true
+        type: string
+      SHA:
+        required: true
+        type: string
+      base-SHA:
+        required: true
+        type: string
   push:
     branches:
       - main
@@ -15,14 +22,26 @@ on:
     paths-ignore:
       - 'docs/**'
 
-# Since this workflow can execute on pull_request_target, drop all the
-# permissions of the GITHUB_TOKEN except `contents: read` for access to the repo
-# with the actions/checkout action.
+# This workflow can execute code from a pull request, so restrict the
+# GITHUB_TOKEN to read-only repository access.
 permissions:
   contents: read
 
 jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set initial commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   build-and-push:
+    needs: commit-status-start
     runs-on: ubuntu-24.04
     strategy:
       matrix:
@@ -37,9 +56,24 @@ jobs:
       IMAGE: ghcr.io/3u13r/${{ matrix.name }}-ci
 
     steps:
-      - name: Checkout main branch
+      - name: Checkout code
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ inputs.SHA || github.sha }}
           fetch-depth: 0
+
+  commit-status-final:
+    if: ${{ always() }}
+    name: Commit Status Final
+    needs: build-and-push
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set final commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+          status: ${{ needs.build-and-push.result == 'success' && 'success' || 'failure' }}
