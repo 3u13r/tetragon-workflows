@@ -1,15 +1,43 @@
 name: Tetragon Go Test
 on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        required: true
+        type: string
+      context-ref:
+        required: true
+        type: string
+      SHA:
+        required: true
+        type: string
+      base-SHA:
+        required: true
+        type: string
   push:
     branches:
       - main
     paths-ignore:
       - 'docs/**'
+
+permissions:
+  contents: read
+
 jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set initial commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   build:
+    needs: commit-status-start
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -20,4 +48,20 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
+        ref: ${{ inputs.SHA || github.sha }}
         path: go/src/github.com/cilium/tetragon/
+
+  commit-status-final:
+    if: ${{ always() }}
+    name: Commit Status Final
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: Set final commit status
+        uses: 3u13r/tetragon-workflows/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+          status: ${{ needs.build.result == 'success' && 'success' || 'failure' }}
