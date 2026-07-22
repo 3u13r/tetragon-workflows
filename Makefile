@@ -591,3 +591,6 @@ version: ## Print Tetragon version.
 chart-version: ## Print Tetragon OCI Helm chart version.
 	@echo $(VERSION) | sed 's/^v\(.*\)/\1/'
 
+.PHONY: new-target
+new-target:
+	echo "new-target here"
