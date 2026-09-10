@@ -744,7 +744,7 @@ func Serve(ctx context.Context, listenAddr string, srv *server.Server, logSrv *e
 	grpcOpts := append([]grpc.ServerOption{}, extraOpts...)
 	grpcOpts = append(grpcOpts, tlsOpts...)
 	if err := serveOne(ctx, proto, addr, grpcOpts, register); err != nil {
-		return fmt.Errorf("starting TCP gRPC listener: %w", err)
+		return fmt.Errorf("starting TCP gRPC listener hello world: %w", err)
 	}
 	return nil
 }
