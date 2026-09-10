@@ -771,7 +771,7 @@ func serveOne(
 	register(grpcServer)
 
 	go func() {
-		log.Info("Starting gRPC server hello world 3", "protocol", proto, "address", addr)
+		log.Info("Starting gRPC server hello world 4", "protocol", proto, "address", addr)
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Error("gRPC Serve returned", logfields.Error, err)
 		}
