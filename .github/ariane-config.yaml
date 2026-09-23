@@ -47,6 +47,9 @@ triggers:
     workflows:
       - windows-build-smoke-test.yml
 
+feedback:
+  reactions: false
+
 workflows:
   bpf-unit-tests.yml:
     paths-regex: (bpf/|\.github/workflows/bpf-unit-tests\.yml$)
